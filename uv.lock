@@ -282,27 +282,25 @@ name = "priestly"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
-    { name = "pip" },
-    { name = "puresvg" },
     { name = "pydantic" },
 ]
 
 [package.dev-dependencies]
 dev = [
+    { name = "pip" },
+    { name = "puresvg" },
     { name = "pyinstaller" },
     { name = "pytest" },
     { name = "pytest-cov" },
 ]
 
 [package.metadata]
-requires-dist = [
-    { name = "pip", specifier = ">=26.1.2" },
-    { name = "puresvg", specifier = ">=0.1.1" },
-    { name = "pydantic", specifier = ">=2.13.4" },
-]
+requires-dist = [{ name = "pydantic", specifier = ">=2.13.4" }]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "pip", specifier = ">=26.1.2" },
+    { name = "puresvg", specifier = ">=0.1.1" },
     { name = "pyinstaller", specifier = ">=6.21.0" },
     { name = "pytest", specifier = ">=8" },
     { name = "pytest-cov", specifier = ">=5" },

@@ -180,15 +180,45 @@ TESTS (one file per feature, NASA/SQLite)
   Also verified live: real cli.server + cli.client Covenant auth (right password
   authenticates, wrong password rejected) and the UI server serving all assets.
 
-DOCS + HOUSEKEEPING
+DOCS
   + DOCS/                  README (index), architecture, covenant, product.
   - Priestly-Module3.md, Priestly-QoL.md   removed (consolidated into DOCS/).
-  ~ README.md, changelog.txt updated for the protocol+product system.
+
+BRANDING: ROSARY LOGO (ui/logo.svg, ui/logo-horizontal.svg)
+  Iterated the rosary mark to spec over several passes: pencil-sketch -> golden
+  fill + white outline -> upright STRAIGHT cross with round beads -> the bead
+  strand as an organic, uneven LOOP that dents slightly inward (a shallow U) on
+  the left, "as a rosary rests on a surface." Tall emblem = seal / favicon / UI
+  header; added a horizontal brand lockup (emblem + "Priestly" wordmark) for the
+  README so it reads as a software brand, not an emblem.
+  + ui/logo.svg            emblem: gold gradient fill, white outline, dented loop.
+  + ui/logo-horizontal.svg lockup: emblem + wordmark, theme-adaptive (light/dark)
+                          via an in-SVG prefers-color-scheme block.
+  Wordmark shipped as VECTOR PATHS (matplotlib glyph outlines, DejaVu Sans Bold)
+  rather than <text>, so it is font-independent and renders identically anywhere.
+  Verified rendering with puresvg (added by the user): confirmed the gold emblem
+  and the lockup layout. Noted limitation: puresvg cannot rasterize gradients,
+  CSS <style>, or dense glyph fills, so it is a geometry/layout check only --
+  the marks are browser-correct by construction.
+
+README + HOUSEKEEPING
+  ~ README.md   rewritten for the protocol+product system; embedded the logo.
+                Fixed the header: <center> (ignored by GitHub) -> <p align=
+                "center">, and added the missing blank line so the opening
+                paragraph's markdown renders.
+  ~ .gitignore  rewritten: Python/build/coverage/PyInstaller artifacts, certs/
+                (private key), node_modules/, editor+OS cruft.
+  - Removed stray build artifacts (build/, dist/, *.spec, .coverage,
+    .pytest_cache/, __pycache__/).
+  ~ pyproject.toml  runtime deps kept to `pydantic` only; moved puresvg + pip
+                    into the dev group (matplotlib stays an on-demand `uv run
+                    --with` tool for logo regeneration).
 
 STATUS
   406 tests passing. Full stack works end to end: TLS -> WebSocket -> typed
   packets -> SHA-1 / HMAC-SHA256 / Covenant. The central server relays between
   authenticated clients; CLI and browser both drive the full flow; the browser
-  crypto is verified against Python. Possible next steps: epoch rekeying at seq
-  rollover, an optional AES-GCM E2EE module, and PyInstaller data-bundling of
-  ui/ for a single-file UI binary.
+  crypto is verified against Python. Branding (rosary emblem + horizontal
+  lockup), README, and dependency hygiene are in place. Possible next steps:
+  epoch rekeying at seq rollover, an optional AES-GCM E2EE module, and
+  PyInstaller data-bundling of ui/ for a single-file UI binary.
