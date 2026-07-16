@@ -1,0 +1,194 @@
+================================================================================
+ PRIESTLY -- DEVLOG
+ A from-scratch encrypted messaging protocol over WSS.
+================================================================================
+
+--------------------------------------------------------------------------------
+ 2026-07-16
+--------------------------------------------------------------------------------
+
+TRANSPORT DECISION
+  Weighed SSH vs WS, then TCP vs WSS vs QUIC for the base transport.
+  Landed on WSS: framing + firewall/proxy traversal + TLS, without the
+  head-of-line and browser-reach downsides that would push us to QUIC before we
+  have a measured need for it. QUIC/WebTransport parked as a future option.
+
+CONSTRAINT: FROM SCRATCH, MINIMAL DEPS
+  Rule set for the build: implement the protocol ourselves on the standard
+  library; the only runtime dep is pydantic, kept strictly for typing /
+  validation / rule enforcement. No `websockets` library -- RFC 6455 is
+  hand-rolled. Dev tooling (pytest, pyinstaller) allowed since it serves
+  testing and packaging.
+
+TRANSPORT LAYER (transport/)
+  + ws.py    RFC 6455 from scratch: opening handshake (SHA-1 accept token),
+             frame encode/decode, client masking, control frames (ping/pong/
+             close), fragmented-message reassembly.
+  + tls.py   stdlib ssl contexts -- the "S" in WSS. server + client sides.
+  + server.py  threaded WSS server (one thread per connection).
+  + client.py  WSS client.
+  Verified end to end: real TLS -> WS handshake -> framed JSON, HELLO/MESSAGE
+  ACKed by the server.
+
+PROTOCOL LAYER (protocol/)
+  + packets.py  versioned Packet envelope wrapping a discriminated union of
+                frames (Hello / Message / Ack / Error), keyed on `type`.
+                dumps()/loads() are the only bridge to the transport layer.
+  models.py (Handshake, Message) retained as-is.
+
+TEST SUITE (tests/) -- NASA/SQLite philosophy, one file per feature
+  + test_frame_codec.py   frame round-trips at every length boundary + masking.
+  + test_handshake.py     server/client handshake, RFC accept vector, errors.
+  + test_websocket.py     send/recv, fragments, ping->pong, close, idempotency.
+  + test_packets.py       envelope validation, discrimination, version guard.
+  + test_tls.py           context construction + verification modes.
+  + test_integration.py   live TLS+WS server: ACKs, 500 KB payload, bad-CA
+                          rejection, clean close.
+  Bugs caught by the suite and fixed in ws.py:
+    * close() marked the socket closed before sending the Close frame, so the
+      frame was swallowed -- reordered to send first.
+    * recv() after close raised a raw OSError (WinError 10038); now translated
+      to ConnectionClosed.
+
+CLI SPLIT + COMPILATION
+  Split the combined CLI into two standalone entry points (one job each):
+    + cli/server.py  -> priestly-server(.exe)
+    + cli/client.py  -> priestly-client(.exe)
+  PyInstaller --onefile builds wired into the Makefile. Rationale: the test
+  bench is a single machine, so client and server must run as separate
+  processes. Verified: the two compiled binaries talk to each other over WSS.
+
+BUILD/TEST WORKFLOW
+  + Makefile  targets: install, cert, test, cov, build[-server|-client],
+              run-server, run-client, clean.
+
+CRYPTO PRIMITIVES (crypto/)
+  + sha1.py     SHA-1 from scratch (RFC 3174) + payload validity tag/verify.
+                Tested against hashlib as an oracle across length boundaries.
+  + huffman.py  Huffman compression from scratch; deterministic tree so the
+                decoder rebuilds identical codes from transmitted frequencies.
+                Tested by lossless round-trip incl. empty / single-symbol / all
+                256 byte values / random.
+  Not yet wired into the packet path (next step).
+
+CONFIG FORMAT: JSONX (config.py, config.cfg)
+  Introduced JSONX = JSONL + JSONC:
+    - JSONL: one JSON object per line; records merge top-to-bottom, later keys
+      win (easy layering/overrides).
+    - JSONC: //, #, /* */ comments and trailing commas, stripped string-aware.
+  ServerConfig (pydantic, extra=forbid) validates server_name / host / port.
+  Wired into both entry points; CLI flags override the file. Verified:
+  config-driven boot ([priestly-node-1] on 8765) and flag override
+  ([override-node] on 9100).
+
+HOUSEKEEPING
+  + .gitignore  ignore dist/build, *.spec, pytest/coverage artifacts, and
+                certs/ (private key -- never commit).
+  + README.md   architecture, principles, quickstart, config, build.
+
+HARDENING + FUZZING
+  Hardened transport/ws.py read_frame per RFC 6455: reject reserved bits,
+  unknown opcodes, fragmented control frames, and oversized (>125) control
+  frames with ProtocolError.
+  + test_malformed_frames.py  truncated streams -> ConnectionClosed; protocol
+                              violations -> ProtocolError; recv() propagates both.
+  + test_packet_fuzz.py       loads() contract: any input either returns a valid
+                              round-trip-stable frame or raises ValueError --
+                              never another exception, never hangs. Random,
+                              mutation, schema, and deep-nesting fuzzing.
+  + test_integration.py       added scripted full session flow:
+                              connect -> HELLO -> MESSAGE -> ACK -> clean close.
+
+SECOND SECURITY LAYER: HMAC-SHA256 (crypto/hmac_sha256.py)
+  Added a keyed authenticity layer on top of the unkeyed SHA-1 integrity tag.
+  Deliberately NOT hand-rolled -- a keyed MAC is security-critical, so it uses
+  the stdlib's audited, constant-time hmac + hashlib.sha256 (still zero external
+  deps). sign()/verify() with constant-time comparison.
+  + test_hmac_sha256.py  canonical vector, stdlib oracle, tamper/wrong-key/
+                         wrong-tag rejection.
+
+STATUS
+  311 tests passing. Transport + protocol + config + compiled binaries working
+  end to end, with hardened frame handling and fuzz-tested packet parsing. Crypto
+  layers ready: SHA-1 (integrity) + HMAC-SHA256 (authenticity) + Huffman
+  (compression). Next: integrate crypto into the packet path (per-message
+  compression + validity/auth tag) and build out the crypto handshake.
+
+--------------------------------------------------------------------------------
+ 2026-07-17
+--------------------------------------------------------------------------------
+
+REFRAME: PRIESTLY IS NOW PROTOCOL + PRODUCT
+  A protocol is useless without a demo that exercises it, so Priestly became a
+  two-layer system: the protocol (transport/protocol/crypto) plus a product
+  (central chat server, CLI client, browser UI). Clients always connect to a
+  central server and avoid P2P; the server is a decrypting relay.
+
+LAYER 3: COVENANT (Module 3)
+  Added an anonymous PAKE authentication layer on top of SHA-1 (integrity) and
+  HMAC-SHA256 (authenticity). Transmits zero identity metadata; proves shared-
+  secret knowledge without sending the secret; forward-secret via ephemeral DH.
+  + crypto/hkdf.py        HKDF-Expand (RFC 5869) over HMAC-SHA256.
+  + crypto/covenant.py    RFC 3526 Group 14 (verified 2048-bit prime), password
+                          -> group element, iterative modinv, confirm MACs,
+                          derive_session_keys (WPA3-style directional keys).
+  + protocol/covenant.py  3-message handshake driver (commit/challenge/confirm)
+                          returning a ready session, or CovenantError on failure.
+  + protocol/session.py   Sealed messages: Huffman + HMAC-SHA256 tag over
+                          epoch|seq|direction|payload, strict anti-replay. A
+                          1-byte compression marker (stored/huffman) keeps the
+                          format cross-implementable with the browser.
+  As-built fixes vs the spec: synchronous (not async) to match the threaded
+  transport; kept the server's confirm_s inside AUTH_OK so MUTUAL auth actually
+  holds (the spec dropped it); wired Huffman into the packet path at last.
+  New frames: hello_ack, covenant_commit/challenge/confirm, auth_ok/fail,
+  sealed, chat.
+
+QOL: PRODUCT LAYER
+  + config.py             password from PRIESTLY_PASSWD / PASSWD env (overrides
+                          config.cfg); password_required signalling.
+  + cli/server.py         central chat server: HELLO -> HELLO_ACK -> [Covenant]
+                          -> relay loop. Open mode (plaintext chat) or protected
+                          mode (sealed). Rewrote from the old echo server.
+  + cli/relay.py          thread-safe ClientRegistry; re-seals per recipient.
+  + cli/chat_client.py    reusable client flow (shared with the tests).
+  + cli/client.py         --listen / --ui / --password; clean auth-failure UX.
+  + cli/ui_server.py      tiny stdlib HTTP server for the browser UI.
+
+BROWSER UI (ui/)
+  + ui/index.html         X-inspired single-column chat (sticky header, timeline,
+                          composer), themed Discord-blurple x Apple-blue, Alpine.js
+                          from CDN, no build step. Connects straight to the
+                          central server; browser advertises status="browser" so
+                          the server seals to it without Huffman.
+  + ui/covenant.js        faithful browser port of the Covenant + sealing crypto
+                          (BigInt + WebCrypto), shared verbatim with the tests.
+  + ui/logo.svg           original rosary logo (bead loop + cross), gradient.
+
+TESTS (one file per feature, NASA/SQLite)
+  + test_hkdf.py            RFC 5869 Expand vector, lengths, label independence.
+  + test_covenant_crypto.py modinv oracle, mapping, mask/unmask, agreement, keys.
+  + test_session.py         seal/open, replay, tamper, direction, compression.
+  + test_covenant_handshake.py  full flow over a socket pair; wrong password;
+                                forward secrecy; MITM rejection.
+  + test_config_password.py env/file precedence; password_required.
+  + test_relay.py           fan-out, dead-peer removal, message codec.
+  + test_chat_integration.py  two live clients through one server, open +
+                              protected, incl. cross-session re-seal relay.
+  + test_ui_covenant.py     cross-checks ui/covenant.js against Python bit-for-
+                            bit under Node; seal/open interop both directions.
+  Also verified live: real cli.server + cli.client Covenant auth (right password
+  authenticates, wrong password rejected) and the UI server serving all assets.
+
+DOCS + HOUSEKEEPING
+  + DOCS/                  README (index), architecture, covenant, product.
+  - Priestly-Module3.md, Priestly-QoL.md   removed (consolidated into DOCS/).
+  ~ README.md, changelog.txt updated for the protocol+product system.
+
+STATUS
+  406 tests passing. Full stack works end to end: TLS -> WebSocket -> typed
+  packets -> SHA-1 / HMAC-SHA256 / Covenant. The central server relays between
+  authenticated clients; CLI and browser both drive the full flow; the browser
+  crypto is verified against Python. Possible next steps: epoch rekeying at seq
+  rollover, an optional AES-GCM E2EE module, and PyInstaller data-bundling of
+  ui/ for a single-file UI binary.

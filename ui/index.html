@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Priestly</title>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <style>
+        /* Palette: Discord blurple (#5865F2) x Apple blue (#007AFF) blend. */
+        :root {
+            --accent: #5b6bf5;
+            --accent-2: #3b82f6;
+            --accent-soft: rgba(91, 107, 245, 0.15);
+            --bg: #0d0e13;
+            --bg-elev: #15171f;
+            --bg-hover: #1b1e28;
+            --border: #242734;
+            --text: #e7e9ee;
+            --text-dim: #8a8f9c;
+            --danger: #f4547a;
+            --ok: #37d39a;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body { height: 100%; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            display: flex;
+            justify-content: center;
+        }
+        /* X-style single centered column with sticky header + bottom composer. */
+        .column {
+            width: 100%;
+            max-width: 600px;
+            min-height: 100%;
+            display: flex;
+            flex-direction: column;
+            border-left: 1px solid var(--border);
+            border-right: 1px solid var(--border);
+            background: var(--bg);
+        }
+        header {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 1rem;
+            background: rgba(13, 14, 19, 0.8);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border);
+        }
+        header img { width: 26px; height: auto; display: block; }
+        header .title { font-weight: 800; font-size: 1.15rem; letter-spacing: -0.02em; }
+        header .spacer { flex: 1; }
+        .status {
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            padding: 0.2rem 0.6rem;
+            border-radius: 9999px;
+            border: 1px solid var(--border);
+            color: var(--text-dim);
+        }
+        .status.connecting { color: #e6b34d; border-color: #e6b34d55; }
+        .status.authenticating { color: var(--accent); border-color: var(--accent); }
+        .status.ready { color: var(--ok); border-color: #37d39a55; }
+        .status.error, .status.disconnected { color: var(--danger); border-color: #f4547a55; }
+
+        .timeline { flex: 1; overflow-y: auto; }
+        .msg {
+            display: flex;
+            gap: 0.75rem;
+            padding: 0.85rem 1rem;
+            border-bottom: 1px solid var(--border);
+            transition: background 0.1s;
+        }
+        .msg:hover { background: var(--bg-hover); }
+        .avatar {
+            flex-shrink: 0;
+            width: 40px; height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--accent), var(--accent-2));
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 700; font-size: 0.95rem; color: white;
+        }
+        .msg.outgoing .avatar { background: linear-gradient(135deg, #3b3f52, #2a2d3a); }
+        .msg .body { flex: 1; min-width: 0; }
+        .msg .meta { font-size: 0.85rem; margin-bottom: 0.15rem; }
+        .msg .meta .name { font-weight: 700; }
+        .msg .meta .name.you { color: var(--accent); }
+        .msg .meta .time { color: var(--text-dim); margin-left: 0.4rem; font-weight: 400; }
+        .msg .text { font-size: 0.95rem; line-height: 1.4; white-space: pre-wrap; word-wrap: break-word; }
+
+        .empty { padding: 3rem 1.5rem; text-align: center; color: var(--text-dim); }
+        .empty img { width: 56px; opacity: 0.7; margin-bottom: 1rem; }
+
+        .banner {
+            margin: 0.75rem 1rem 0;
+            padding: 0.6rem 0.85rem;
+            border-radius: 0.6rem;
+            font-size: 0.85rem;
+            background: rgba(244, 84, 122, 0.12);
+            border: 1px solid #f4547a44;
+            color: #ffb4c6;
+        }
+
+        .composer {
+            position: sticky; bottom: 0;
+            display: flex; gap: 0.6rem; align-items: flex-end;
+            padding: 0.75rem 1rem;
+            border-top: 1px solid var(--border);
+            background: rgba(13, 14, 19, 0.85);
+            backdrop-filter: blur(12px);
+        }
+        textarea, input[type=password] {
+            width: 100%;
+            resize: none;
+            background: var(--bg-elev);
+            border: 1px solid var(--border);
+            border-radius: 1rem;
+            padding: 0.6rem 0.9rem;
+            color: var(--text);
+            font: inherit;
+            font-size: 0.95rem;
+            outline: none;
+        }
+        textarea:focus, input[type=password]:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-soft);
+        }
+        .btn {
+            flex-shrink: 0;
+            border: none;
+            border-radius: 9999px;
+            padding: 0.55rem 1.25rem;
+            font: inherit; font-weight: 700; font-size: 0.9rem;
+            color: white;
+            background: linear-gradient(135deg, var(--accent), var(--accent-2));
+            cursor: pointer;
+            transition: filter 0.12s, opacity 0.12s;
+        }
+        .btn:hover { filter: brightness(1.08); }
+        .btn:disabled { opacity: 0.45; cursor: not-allowed; filter: none; }
+
+        /* Password gate */
+        .gate { padding: 2.5rem 1.5rem; display: flex; flex-direction: column; align-items: center; gap: 1rem; }
+        .gate img { width: 52px; }
+        .gate h2 { font-size: 1.1rem; font-weight: 800; }
+        .gate p { color: var(--text-dim); font-size: 0.9rem; text-align: center; max-width: 32ch; }
+        .gate .row { display: flex; gap: 0.6rem; width: 100%; max-width: 340px; }
+        .lock-note { font-size: 0.75rem; color: var(--text-dim); }
+    </style>
+</head>
+<body x-data="priestly()" x-init="init()">
+    <div class="column">
+        <header>
+            <img src="/logo.svg" alt="Priestly">
+            <span class="title">Priestly</span>
+            <span class="spacer"></span>
+            <span class="status" :class="state" x-text="state"></span>
+        </header>
+
+        <template x-if="error">
+            <div class="banner" x-text="error"></div>
+        </template>
+
+        <!-- Password gate (Covenant) -->
+        <template x-if="needsPassword && !authenticated">
+            <div class="gate">
+                <img src="/logo.svg" alt="">
+                <h2 x-text="'“' + (serverName || 'This node') + '” is protected'"></h2>
+                <p>Enter the shared secret. It is never sent to the server &mdash; the
+                   Covenant handshake only proves you know it.</p>
+                <div class="row">
+                    <input type="password" x-model="password"
+                           @keydown.enter="authenticate()"
+                           placeholder="Covenant secret&hellip;"
+                           :disabled="state === 'authenticating'">
+                    <button class="btn" @click="authenticate()"
+                            :disabled="!password || state === 'authenticating'"
+                            x-text="state === 'authenticating' ? 'Verifying&hellip;' : 'Enter'"></button>
+                </div>
+                <span class="lock-note">Layer 3 &middot; anonymous PAKE &middot; 2048-bit</span>
+            </div>
+        </template>
+
+        <!-- Timeline -->
+        <template x-if="!needsPassword || authenticated">
+            <div class="timeline" x-ref="timeline">
+                <template x-if="messages.length === 0">
+                    <div class="empty">
+                        <img src="/logo.svg" alt=""><br>
+                        No messages yet. Say something.
+                    </div>
+                </template>
+                <template x-for="m in messages" :key="m.id">
+                    <div class="msg" :class="m.direction">
+                        <div class="avatar" x-text="m.sender.slice(0,2).toUpperCase()"></div>
+                        <div class="body">
+                            <div class="meta">
+                                <span class="name" :class="{ you: m.direction === 'outgoing' }"
+                                      x-text="m.direction === 'outgoing' ? 'You' : m.sender"></span>
+                                <span class="time" x-text="m.time"></span>
+                            </div>
+                            <div class="text" x-text="m.text"></div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </template>
+
+        <!-- Composer -->
+        <template x-if="!needsPassword || authenticated">
+            <div class="composer">
+                <textarea x-model="draft" rows="1"
+                          @keydown.enter.prevent="send()"
+                          placeholder="Type a message&hellip;"
+                          :disabled="state !== 'ready'"></textarea>
+                <button class="btn" @click="send()"
+                        :disabled="!draft.trim() || state !== 'ready'">Send</button>
+            </div>
+        </template>
+    </div>
+
+    <script src="/covenant.js"></script>
+    <script>
+        // === Wire target: the central Priestly server (injected at serve time) ===
+        const WS_URL = "wss://__WS_HOST__:__WS_PORT__/";
+        // All PAKE + sealing math lives in /covenant.js (shared with the tests).
+        const C = window.PriestlyCovenant;
+
+        function priestly() {
+            return {
+                ws: null,
+                state: "connecting",
+                error: "",
+                serverName: "",
+                needsPassword: false,
+                authenticated: false,
+                password: "",
+                draft: "",
+                messages: [],
+                msgId: 0,
+                userId: Math.floor(Math.random() * 1e9),
+                keys: null,
+                txSeq: 0,
+                rxSeq: 0,
+                inbox: [],
+                waiters: [],
+
+                init() { this.connect(); },
+
+                connect() {
+                    this.state = "connecting";
+                    this.error = "";
+                    try { this.ws = new WebSocket(WS_URL); }
+                    catch (e) { this.fail("Could not open WebSocket."); return; }
+
+                    this.ws.onopen = () => this.handshake();
+                    this.ws.onmessage = (ev) => this.onFrame(JSON.parse(ev.data).frame);
+                    this.ws.onerror = () => this.fail("WebSocket error. Is the server running, and its certificate trusted?");
+                    this.ws.onclose = () => {
+                        if (this.state !== "error") this.state = "disconnected";
+                        setTimeout(() => this.connect(), 3000);
+                    };
+                },
+
+                // --- frame plumbing: a promise-based inbox ---
+                onFrame(frame) {
+                    if (this.waiters.length) this.waiters.shift()(frame);
+                    else this.inbox.push(frame);
+                },
+                nextFrame() {
+                    if (this.inbox.length) return Promise.resolve(this.inbox.shift());
+                    return new Promise((res) => this.waiters.push(res));
+                },
+                sendFrame(frame) {
+                    if (this.ws && this.ws.readyState === WebSocket.OPEN)
+                        this.ws.send(JSON.stringify({ version: 1, frame }));
+                },
+
+                async handshake() {
+                    // HELLO -> HELLO_ACK. status:"browser" tells the server to
+                    // seal to us without Huffman (which we cannot decompress).
+                    this.sendFrame({
+                        type: "hello",
+                        handshake: {
+                            id: 1, user_id: this.userId, device_id: 1,
+                            timestamp: new Date().toISOString(), status: "browser",
+                        },
+                    });
+                    const ack = await this.nextFrame();
+                    if (ack.type !== "hello_ack") { this.fail("Unexpected server reply."); return; }
+                    this.serverName = ack.server_name;
+                    if (ack.password_required) {
+                        this.needsPassword = true;
+                        this.state = "authenticating";
+                    } else {
+                        this.state = "ready";
+                        this.receiveLoop();
+                    }
+                },
+
+                async authenticate() {
+                    if (!this.password) return;
+                    this.state = "authenticating";
+                    this.error = "";
+                    try {
+                        await this.runCovenant(enc(this.password));
+                    } catch (e) {
+                        this.password = "";
+                        this.state = "error";
+                        this.needsPassword = true;
+                        this.authenticated = false;
+                        this.error = "Authentication failed. Check the secret.";
+                        return;
+                    }
+                    this.authenticated = true;
+                    this.state = "ready";
+                    this.receiveLoop();
+                },
+
+                async runCovenant(pwBytes) {
+                    const a = C.randomExponent();
+                    const A = C.modPow(C.G, a, C.P);
+                    const commit = await C.sha1(C.bigToBytes(A, C.ELEMENT_BYTES));
+                    this.sendFrame({ type: "covenant_commit", commit: C.bytesToHex(commit) });
+
+                    const challenge = await this.nextFrame();
+                    if (challenge.type !== "covenant_challenge") throw new Error("no challenge");
+                    const masked = C.bytesToBig(C.hexToBytes(challenge.masked_b));
+                    const pe = await C.secretToElement(pwBytes);
+                    const B = (masked * C.modinv(pe, C.P)) % C.P;
+                    const shared = C.modPow(B, a, C.P);
+
+                    const confirmC = await C.confirmMac(shared, commit, "client", A);
+                    this.sendFrame({
+                        type: "covenant_confirm",
+                        a: C.bytesToHex(C.bigToBytes(A, C.ELEMENT_BYTES)),
+                        confirm_c: C.bytesToHex(confirmC),
+                    });
+
+                    const res = await this.nextFrame();
+                    if (res.type !== "auth_ok") throw new Error(res.reason || "auth failed");
+                    const expectS = C.bytesToHex(await C.confirmMac(shared, commit, "server", B));
+                    if (expectS !== res.confirm_s) throw new Error("server confirmation failed");
+
+                    this.keys = await C.deriveKeys(shared);
+                    this.txSeq = 0; this.rxSeq = 0;
+                },
+
+                async receiveLoop() {
+                    while (this.state === "ready") {
+                        const frame = await this.nextFrame();
+                        if (frame.type === "chat") {
+                            this.addMessage(frame.text, frame.sender, "incoming");
+                        } else if (frame.type === "sealed") {
+                            try { const { text, sender } = await this.openSealed(frame); this.addMessage(text, sender, "incoming"); }
+                            catch (e) { /* drop unverifiable frame */ }
+                        } else if (frame.type === "error") {
+                            this.error = frame.reason || "Server error.";
+                        }
+                    }
+                },
+
+                async send() {
+                    const text = this.draft.trim();
+                    if (!text || this.state !== "ready") return;
+                    if (this.keys) {
+                        this.txSeq += 1;
+                        this.sendFrame(await C.seal(this.keys, this.txSeq, { text, sender: "browser" }));
+                    } else {
+                        this.sendFrame({ type: "chat", text, sender: "browser" });
+                    }
+                    this.addMessage(text, "browser", "outgoing");
+                    this.draft = "";
+                },
+
+                async openSealed(frame) {
+                    const obj = await C.open_(this.keys, this.rxSeq, frame);
+                    this.rxSeq = frame.seq;
+                    return obj;
+                },
+
+                addMessage(text, sender, direction) {
+                    this.messages.push({ id: ++this.msgId, text, sender, direction, time: new Date().toLocaleTimeString() });
+                    this.$nextTick(() => {
+                        const t = this.$refs.timeline;
+                        if (t) t.scrollTop = t.scrollHeight;
+                    });
+                },
+
+                fail(msg) { this.error = msg; this.state = "error"; },
+            };
+        }
+    </script>
+</body>
+</html>
