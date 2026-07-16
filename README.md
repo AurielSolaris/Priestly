@@ -1,10 +1,11 @@
-<center>
-<img src="./ui/logo-horizontal.svg" alt="Priestly" height="60">
-</center>
+<p align="center">
+  <img src="./ui/logo-horizontal.svg" alt="Priestly" height="64">
+</p>
+
 A custom, encrypted messaging **protocol** built from scratch over **WSS**
 (WebSocket Secure), plus the **product** that makes it real: a central chat
-server, a CLI client, and a browser UI. A protocol is only as useful as the
-demo that exercises it, so Priestly is a two-layer system — protocol + product.
+server, a CLI client, and a browser UI. A protocol is only as useful as the demo
+that exercises it, so Priestly is a two-layer system — protocol + product.
 
 Everything is hand-rolled on the Python standard library: the WebSocket layer
 (RFC 6455), TLS wiring, packet framing, JSONX config, SHA-1, the Huffman codec,
