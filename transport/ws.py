@@ -77,7 +77,12 @@ def _read_http_headers(sock) -> str:
     """
     buf = bytearray()
     while not buf.endswith(b"\r\n\r\n"):
-        byte = sock.recv(1)
+        try:
+            byte = sock.recv(1)
+        except OSError as exc:
+            # Peer aborted mid-handshake (common: browsers probing the port,
+            # cert checks, abrupt closes). Surface as a clean close, not a crash.
+            raise ConnectionClosed(reason=f"socket error during handshake: {exc}") from exc
         if not byte:
             raise ConnectionClosed(reason="stream ended during handshake")
         buf += byte

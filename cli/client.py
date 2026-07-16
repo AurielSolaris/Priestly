@@ -30,8 +30,10 @@ def _connect(args) -> ChatClient:
         host=host, port=port,
         cafile=None if args.insecure else args.cafile,
         insecure=args.insecure,
+        use_tls=not args.no_tls,
     ).connect()
-    print(f"connected to wss://{host}:{port}")
+    scheme = "ws" if args.no_tls else "wss"
+    print(f"connected to {scheme}://{host}:{port}")
 
     client = ChatClient(ws)
     ack = client.hello()
@@ -76,6 +78,7 @@ def cmd_ui(args) -> int:
         ws_host=args.host or cfg.host,
         ws_port=args.port or cfg.port,
         ui_port=args.ui_port,
+        ws_scheme="ws" if args.no_tls else "wss",
     )
     return 0
 
@@ -92,6 +95,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--port", type=int, default=None)
     parser.add_argument("--cafile", default=DEFAULT_CERT, help="CA/cert to trust")
     parser.add_argument("--insecure", action="store_true", help="skip TLS verification")
+    parser.add_argument("--no-tls", action="store_true",
+                        help="use plain ws:// (match a server started with --no-tls)")
     return parser
 
 

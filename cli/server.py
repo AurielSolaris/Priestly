@@ -131,6 +131,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--port", type=int, default=None, help="override config port")
     parser.add_argument("--cert", default=DEFAULT_CERT)
     parser.add_argument("--key", default=DEFAULT_KEY)
+    parser.add_argument("--no-tls", action="store_true",
+                        help="serve plain ws:// instead of wss:// (local dev; "
+                             "avoids the self-signed certificate browsers reject)")
     return parser
 
 
@@ -145,13 +148,15 @@ def main() -> int:
         cfg.port = args.port
 
     mode = "password-protected" if cfg.password_required else "open"
-    print(f"[{cfg.server_name}] starting ({mode})")
+    transport = "no-TLS (ws://)" if args.no_tls else "TLS (wss://)"
+    print(f"[{cfg.server_name}] starting ({mode}, {transport})")
     server = WSSServer(
         make_handler(cfg),
-        certfile=args.cert,
-        keyfile=args.key,
+        certfile=None if args.no_tls else args.cert,
+        keyfile=None if args.no_tls else args.key,
         host=cfg.host,
         port=cfg.port,
+        use_tls=not args.no_tls,
     )
     server.serve_forever()
     return 0

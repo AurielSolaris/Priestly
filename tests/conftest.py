@@ -138,15 +138,16 @@ def chat_server(_ensure_cert):
     from cli.relay import ClientRegistry
     from cli.server import make_handler
 
-    def start(password=None, server_name="test-node"):
+    def start(password=None, server_name="test-node", use_tls=True):
         cfg = config_module.ServerConfig(server_name=server_name, password=password)
         port = _free_port()
         server = WSSServer(
             make_handler(cfg, ClientRegistry()),
-            certfile=str(CERT),
-            keyfile=str(KEY),
+            certfile=str(CERT) if use_tls else None,
+            keyfile=str(KEY) if use_tls else None,
             host="localhost",
             port=port,
+            use_tls=use_tls,
         )
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()

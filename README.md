@@ -92,6 +92,21 @@ Two browser clients: run `python -m cli.client --ui` twice — each connects to
 the central server, authenticates, and sees the other's messages. Clients never
 talk peer-to-peer; the server is a decrypting relay that re-seals per recipient.
 
+### Local browser testing (`--no-tls`)
+
+Browsers refuse the self-signed dev certificate, so for local testing run the
+server in plain-`ws://` mode:
+
+```sh
+python -m cli.server --no-tls
+python -m cli.client --ui --no-tls      # UI connects over ws://, no cert prompt
+python -m cli.client "hi" --no-tls      # CLI over ws://
+```
+
+This drops only *wire confidentiality* — the Covenant handshake still
+authenticates and every message is still HMAC-sealed. TLS (`wss://`) remains the
+default for real use; to keep it, trust `certs/dev.crt` in your browser/OS first.
+
 ## Standalone binaries
 
 The client and server compile to independent executables (the test bench is a

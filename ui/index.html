@@ -229,7 +229,7 @@
     <script src="/covenant.js"></script>
     <script>
         // === Wire target: the central Priestly server (injected at serve time) ===
-        const WS_URL = "wss://__WS_HOST__:__WS_PORT__/";
+        const WS_URL = "__WS_SCHEME__://__WS_HOST__:__WS_PORT__/";
         // All PAKE + sealing math lives in /covenant.js (shared with the tests).
         const C = window.PriestlyCovenant;
 

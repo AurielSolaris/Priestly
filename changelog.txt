@@ -214,11 +214,35 @@ README + HOUSEKEEPING
                     into the dev group (matplotlib stays an on-demand `uv run
                     --with` tool for logo regeneration).
 
+TRANSPORT ROBUSTNESS + PLAIN-WS MODE
+  Reported: worker threads dumping ConnectionAbortedError (WinError 10053)
+  tracebacks when a peer drops during the handshake (browsers probe the port,
+  check the cert, close abruptly). Fixes:
+  ~ transport/ws.py       _read_http_headers now translates socket OSError ->
+                          ConnectionClosed (was raw traceback), matching
+                          _recv_exact.
+  ~ transport/server.py   _serve_connection also catches OSError as a safety net,
+                          logging "connection dropped" instead of crashing the
+                          thread.
+  Reported: browsers refuse the self-signed cert (CERTIFICATE_UNKNOWN), blocking
+  local UI testing. Added an opt-in no-TLS mode -> plain ws:// for local dev.
+  Confidentiality is delegated away, but Covenant auth + per-message HMAC still
+  hold; wss:// stays the default.
+  + transport/{server,client}.py  use_tls flag; plain socket when disabled.
+  + cli/server.py, cli/client.py  --no-tls; scheme printed on startup.
+  + cli/ui_server.py, ui/index.html  inject ws/wss scheme into the page.
+  + test_no_tls.py  plain-ws HELLO, Covenant auth, sealed relay, wrong password.
+
+DOCS
+  ~ README.md, DOCS/product.md  documented --no-tls local testing and the two
+    ways to run the browser UI (plain ws vs trusting the dev cert).
+
 STATUS
-  406 tests passing. Full stack works end to end: TLS -> WebSocket -> typed
-  packets -> SHA-1 / HMAC-SHA256 / Covenant. The central server relays between
-  authenticated clients; CLI and browser both drive the full flow; the browser
-  crypto is verified against Python. Branding (rosary emblem + horizontal
-  lockup), README, and dependency hygiene are in place. Possible next steps:
-  epoch rekeying at seq rollover, an optional AES-GCM E2EE module, and
-  PyInstaller data-bundling of ui/ for a single-file UI binary.
+  410 tests passing. Full stack works end to end: (TLS or plain) WebSocket ->
+  typed packets -> SHA-1 / HMAC-SHA256 / Covenant. The central server relays
+  between authenticated clients; CLI and browser both drive the full flow; the
+  browser crypto is verified against Python. Transport tolerates abrupt peer
+  drops, and a --no-tls mode unblocks local browser testing. Possible next steps:
+  handshake-phase socket timeouts (so mismatched ws/wss modes fail fast instead
+  of hanging), epoch rekeying at seq rollover, an optional AES-GCM E2EE module,
+  and PyInstaller data-bundling of ui/ for a single-file UI binary.

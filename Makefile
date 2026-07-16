@@ -4,7 +4,7 @@
 PY := uv run
 DIST := dist
 
-.PHONY: help install cert test cov build build-server build-client run-server run-client run-ui clean
+.PHONY: help install cert test cov build build-server build-client run-server run-server-plain run-client run-ui clean
 
 help:
 	@echo "Targets:"
@@ -16,6 +16,7 @@ help:
 	@echo "  build-server  compile dist/priestly-server"
 	@echo "  build-client  compile dist/priestly-client"
 	@echo "  run-server    run the server from source"
+	@echo "  run-server-plain  run the server without TLS (plain ws:// for local dev)"
 	@echo "  run-client    run the client from source (TEXT=...)"
 	@echo "  run-ui        run the client with the browser UI"
 	@echo "  clean         remove build/test artifacts"
@@ -42,6 +43,9 @@ build-client:
 
 run-server:
 	$(PY) python -m cli.server
+
+run-server-plain:
+	$(PY) python -m cli.server --no-tls
 
 TEXT ?= hello over WSS
 run-client:

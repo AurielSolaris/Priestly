@@ -25,9 +25,14 @@ knows nothing about sockets, and the product wires them together.
 ├──────────────────────────────────────────────┤
 │  Packet envelope (typed frames)              │  protocol/packets.py
 ├──────────────────────────────────────────────┤
-│  WebSocket (RFC 6455)  →  TLS  →  TCP         │  transport/
+│  WebSocket (RFC 6455)  →  TLS*  →  TCP        │  transport/
 └──────────────────────────────────────────────┘
 ```
+
+\* TLS is the default (`wss://`) but optional: `--no-tls` serves plain `ws://`
+for local browser testing. Dropping it removes only wire confidentiality —
+Covenant auth and the per-message HMAC still hold. See
+[product.md](product.md#tls-and-the-dev-certificate).
 
 ## Client/server topology
 

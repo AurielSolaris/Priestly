@@ -23,15 +23,20 @@ class WSSServer:
         self,
         handler: Handler,
         *,
-        certfile: str,
-        keyfile: str,
+        certfile: str | None = None,
+        keyfile: str | None = None,
         host: str = "localhost",
         port: int = 8765,
+        use_tls: bool = True,
     ):
         self._handler = handler
         self._host = host
         self._port = port
-        self._tls = server_context(certfile, keyfile)
+        self._use_tls = use_tls
+        # ``use_tls=False`` serves plain ws:// -- convenient for local browser
+        # testing where a self-signed certificate is refused. Confidentiality is
+        # then delegated away, but Covenant auth and per-message HMAC still hold.
+        self._tls = server_context(certfile, keyfile) if use_tls else None
         self._sock: socket.socket | None = None
 
     def serve_forever(self) -> None:
@@ -39,7 +44,8 @@ class WSSServer:
         self._sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self._sock.bind((self._host, self._port))
         self._sock.listen(64)
-        print(f"WSS server listening on wss://{self._host}:{self._port}")
+        scheme = "wss" if self._use_tls else "ws"
+        print(f"WebSocket server listening on {scheme}://{self._host}:{self._port}")
 
         try:
             while True:
@@ -54,23 +60,30 @@ class WSSServer:
             self._sock.close()
 
     def _serve_connection(self, raw: socket.socket, addr: tuple) -> None:
-        try:
-            tls = self._tls.wrap_socket(raw, server_side=True)
-        except OSError as exc:
-            print(f"[{addr}] TLS handshake failed: {exc}")
-            raw.close()
-            return
+        if self._use_tls:
+            try:
+                conn = self._tls.wrap_socket(raw, server_side=True)
+            except OSError as exc:
+                print(f"[{addr}] TLS handshake failed: {exc}")
+                raw.close()
+                return
+        else:
+            conn = raw
 
         try:
-            server_handshake(tls)
-            ws = WebSocket(tls, is_client=False)
+            server_handshake(conn)
+            ws = WebSocket(conn, is_client=False)
             self._handler(ws, addr)
         except ConnectionClosed:
             pass
         except ProtocolError as exc:
             print(f"[{addr}] protocol error: {exc}")
+        except OSError as exc:
+            # A peer that drops mid-send/recv (browser probe, abrupt close)
+            # should not spill a traceback from the worker thread.
+            print(f"[{addr}] connection dropped: {exc}")
         finally:
             try:
-                tls.close()
+                conn.close()
             except OSError:
                 pass

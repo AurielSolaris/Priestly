@@ -21,15 +21,18 @@ def _load(name: str) -> str:
     return (_UI_DIR / name).read_text(encoding="utf-8")
 
 
-def _render_index(ws_host: str, ws_port: int) -> bytes:
+def _render_index(ws_host: str, ws_port: int, ws_scheme: str = "wss") -> bytes:
     html = _load("index.html")
-    html = html.replace("__WS_HOST__", ws_host).replace("__WS_PORT__", str(ws_port))
+    html = (html
+            .replace("__WS_SCHEME__", ws_scheme)
+            .replace("__WS_HOST__", ws_host)
+            .replace("__WS_PORT__", str(ws_port)))
     return html.encode("utf-8")
 
 
-def serve_ui(ws_host: str, ws_port: int, ui_port: int = 8080) -> None:
+def serve_ui(ws_host: str, ws_port: int, ui_port: int = 8080, ws_scheme: str = "wss") -> None:
     """Serve the UI, auto-incrementing the port if ``ui_port`` is taken."""
-    index_bytes = _render_index(ws_host, ws_port)
+    index_bytes = _render_index(ws_host, ws_port, ws_scheme)
     covenant_bytes = _load("covenant.js").encode("utf-8")
     try:
         logo_bytes = _load("logo.svg").encode("utf-8")
@@ -69,7 +72,7 @@ def serve_ui(ws_host: str, ws_port: int, ui_port: int = 8080) -> None:
 
     threading.Thread(target=server.serve_forever, daemon=True).start()
     url = f"http://localhost:{port}"
-    print(f"Priestly UI at {url}  ->  server wss://{ws_host}:{ws_port}")
+    print(f"Priestly UI at {url}  ->  server {ws_scheme}://{ws_host}:{ws_port}")
     webbrowser.open(url)
 
     try:

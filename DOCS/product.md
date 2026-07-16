@@ -56,12 +56,23 @@ The browser advertises `status="browser"` in its `HELLO`, which tells the
 server to seal to it without Huffman (the browser sends/receives only "stored"
 payloads).
 
-### Note on the dev certificate
+### TLS and the dev certificate
 
-Because the server uses a self-signed cert, the browser must trust it before
-`wss://` will connect. Visit `https://<host>:<port>/` once and accept the
-certificate, then load the UI. (WebCrypto itself is available because the UI is
-served from `localhost`, a secure context.)
+By default the server speaks `wss://` (TLS). Browsers refuse the self-signed dev
+certificate, so there are two ways to test locally:
+
+1. **Plain `ws://` (recommended for local dev):** start both ends with
+   `--no-tls` (`cli.server --no-tls`, `cli.client --ui --no-tls`). The UI then
+   connects over `ws://` with no certificate prompt. This drops wire
+   confidentiality only — the Covenant handshake still authenticates and every
+   message is still HMAC-sealed. WebCrypto remains available because the UI is
+   served from `localhost` (a secure context).
+2. **Keep TLS:** trust `certs/dev.crt` first — e.g. visit `https://<host>:<port>/`
+   once and accept the certificate (or import it into the OS/browser store),
+   then load the UI over `wss://`.
+
+The server prints its scheme on startup (`ws://` vs `wss://`); the client must
+match it (both `--no-tls` or both TLS).
 
 ## Running two clients
 
@@ -82,4 +93,6 @@ password gate is skipped entirely.
 - `tests/test_relay.py` — registry fan-out, dead-peer removal, message codec.
 - `tests/test_chat_integration.py` — two live clients through one server, open
   and password-protected, including the cross-session re-seal relay.
+- `tests/test_no_tls.py` — the plain-`ws://` transport: HELLO, Covenant auth, and
+  sealed relay all work without TLS.
 - `tests/test_ui_covenant.py` — the browser crypto vs Python (Node cross-check).
